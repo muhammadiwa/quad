@@ -58,24 +58,25 @@ class QuadrangService
     /**
      * @throws ConnectionException
      */
-    public function createTask(string $timeSheetId, string $task): array
+    public function createTask(string $timeSheetId, string $task, ?string $startDate = null, ?string $endDate = null, bool $skipHolidays = true): array
     {
-        $year = $this->year;
-        $month = $this->month;
+        $start = $startDate ? Carbon::parse($startDate) : Carbon::createFromDate($this->year, $this->month, 1);
+        $end = $endDate ? Carbon::parse($endDate) : $start->copy()->endOfMonth();
 
-        $start = Carbon::createFromDate($year, $month, 1);
-        $end = $start->copy()->endOfMonth();
+        $this->year = (string) $start->year;
+        $this->month = (string) $start->month;
 
         $period = CarbonPeriod::create($start, $end);
+        $holidays = $skipHolidays ? $this->getIndonesianHolidays((int) $this->year, (int) $this->month) : [];
 
-        $multipartPayload = [
+        $basePayload = [
             [
                 'name' => 'type_task',
                 'contents' => 'Work',
             ],
             [
                 'name' => 'id_project',
-                'contents' => '40',
+                'contents' => '17',
             ],
             [
                 'name' => 'start_at',
@@ -95,7 +96,7 @@ class QuadrangService
             ],
             [
                 'name' => 'skills',
-                'contents' => '80',
+                'contents' => '70',
             ],
             [
                 'name' => 'custom_location',
@@ -103,30 +104,96 @@ class QuadrangService
             ],
         ];
 
+        $created = [];
+        $failed = [];
+        $skippedWeekend = [];
+        $skippedHoliday = [];
+
         foreach ($period as $date) {
-            if (! $date->isWeekend()) {
-                $multipartPayload[] = [
-                    'name' => 'date',
-                    'contents' => (int) $date->format('d'),
-                ];
-                $multipartPayload[] = [
-                    'name' => 'end_date',
-                    'contents' => (int) $date->format('d'),
+            $dateKey = $date->toDateString();
+
+            if ($date->isWeekend()) {
+                $skippedWeekend[] = $dateKey;
+
+                continue;
+            }
+
+            if (isset($holidays[$dateKey])) {
+                $skippedHoliday[] = [
+                    'date' => $dateKey,
+                    'name' => $holidays[$dateKey],
                 ];
 
-                Http::asMultipart()
-                    ->withHeaders([
-                        'X-CSRFToken' => config('quadrang.config.csrf_token'),
-                        'Referer' => "https://quadrang.steradian.co.id/attendance/task/$timeSheetId",
-                        'Cookie' => config('quadrang.config.cookie'),
-                    ])->post("https://quadrang.steradian.co.id/attendance/task-create/$timeSheetId", $multipartPayload);
+                continue;
             }
+
+            $multipartPayload = array_merge($basePayload, [
+                [
+                    'name' => 'date',
+                    'contents' => (int) $date->format('d'),
+                ],
+                [
+                    'name' => 'end_date',
+                    'contents' => (int) $date->format('d'),
+                ],
+            ]);
+
+            $response = Http::asMultipart()
+                ->withHeaders([
+                    'X-CSRFToken' => config('quadrang.config.csrf_token'),
+                    'Referer' => "https://quadrang.steradian.co.id/attendance/task/$timeSheetId",
+                    'Cookie' => config('quadrang.config.cookie'),
+                ])->post("https://quadrang.steradian.co.id/attendance/task-create/$timeSheetId", $multipartPayload);
+
+            if ($response->successful()) {
+                $created[] = $dateKey;
+
+                continue;
+            }
+
+            $failed[] = [
+                'date' => $dateKey,
+                'status' => $response->status(),
+            ];
         }
 
         return [
             'timesheet_id' => $timeSheetId,
-            'month' => $month,
-            'year' => $year,
+            'start_date' => $start->toDateString(),
+            'end_date' => $end->toDateString(),
+            'month' => $this->month,
+            'year' => $this->year,
+            'created' => $created,
+            'skipped_weekend' => $skippedWeekend,
+            'skipped_holiday' => $skippedHoliday,
+            'failed' => $failed,
         ];
+    }
+
+    public function setMonthYearFromDate(string $date): void
+    {
+        $parsed = Carbon::parse($date);
+        $this->year = (string) $parsed->year;
+        $this->month = (string) $parsed->month;
+    }
+
+    public function getIndonesianHolidays(int $year, ?int $month = null): array
+    {
+        $params = $year === (int) now()->year ? [] : ['year' => $year];
+
+        $response = Http::timeout(10)->get('https://libur.deno.dev/api', $params);
+
+        if ($response->failed()) {
+            return [];
+        }
+
+        return collect($response->json())
+            ->when($month, fn ($holidays) => $holidays->filter(
+                fn (array $holiday) => Carbon::parse($holiday['date'])->month === $month
+            ))
+            ->mapWithKeys(fn (array $holiday) => [
+                $holiday['date'] => $holiday['name'] ?? 'Libur nasional',
+            ])
+            ->all();
     }
 }
