@@ -252,7 +252,10 @@
 </head>
 <body>
     <main class="container app-shell py-5">
-        <div class="d-flex justify-content-end mb-3">
+        <div class="d-flex justify-content-end mb-3 gap-2">
+            <a href="{{ route('attendance.index') }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                🕒 Attendance
+            </a>
             <a href="{{ route('settings.edit') }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
                 ⚙ Settings
             </a>

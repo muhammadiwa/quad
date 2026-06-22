@@ -97,6 +97,9 @@ When Quadrang logs you out, repeat step 2–5.
 | `/timesheet/create` | POST | Web form submission, returns flash message |
 | `/api/timesheet/create` | POST | JSON API, same flow, JSON response |
 | `/timesheet/holidays` | GET | JSON list of Indonesian holidays for a year/month |
+| `/attendance` | GET | Browser page with **Clock In** / **Clock Out** buttons that read `navigator.geolocation` and POST `{lat, lon}` |
+| `/api/attendance/clock-in` | POST | JSON API: `{lat, lon}` → GET `https://quadrang.steradian.co.id/attendance/clock-in` |
+| `/api/attendance/clock-out` | POST | JSON API: `{lat, lon}` → GET `https://quadrang.steradian.co.id/attendance/clock-out` |
 | `/settings` | GET / PATCH | Edit `base_url`, `csrf_token`, `cookie`, default template |
 | `/settings/template/new` | GET | New task template form |
 | `/settings/template/{id}` | GET / PUT / DELETE | Edit / update / delete a template |

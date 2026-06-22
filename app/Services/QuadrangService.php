@@ -256,6 +256,59 @@ class QuadrangService
         $this->month = (string) $parsed->month;
     }
 
+    public function clockIn(float $lat, float $lon): array
+    {
+        $response = Http::timeout(self::REQUEST_TIMEOUT)
+            ->connectTimeout(self::CONNECT_TIMEOUT)
+            ->retry(self::RETRY_TIMES, self::RETRY_SLEEP_MS, throw: false)
+            ->withHeaders(array_merge($this->commonHeaders(), [
+                'X-CSRFToken' => $this->csrfToken(),
+                'Referer' => $this->baseUrl() . '/attendance',
+            ]))
+            ->get($this->baseUrl() . '/attendance/clock-in', [
+                'lat' => $lat,
+                'lon' => $lon,
+            ]);
+
+        return $this->summarizeAttendanceResponse('clockIn', $response);
+    }
+
+    public function clockOut(float $lat, float $lon): array
+    {
+        $response = Http::timeout(self::REQUEST_TIMEOUT)
+            ->connectTimeout(self::CONNECT_TIMEOUT)
+            ->retry(self::RETRY_TIMES, self::RETRY_SLEEP_MS, throw: false)
+            ->withHeaders(array_merge($this->commonHeaders(), [
+                'X-CSRFToken' => $this->csrfToken(),
+                'Referer' => $this->baseUrl() . '/attendance',
+            ]))
+            ->get($this->baseUrl() . '/attendance/clock-out', [
+                'lat' => $lat,
+                'lon' => $lon,
+            ]);
+
+        return $this->summarizeAttendanceResponse('clockOut', $response);
+    }
+
+    private function summarizeAttendanceResponse(string $action, $response): array
+    {
+        $body = $response->body();
+        $visible = trim(preg_replace('/\s+/', ' ', strip_tags($body)));
+
+        \Log::info("quadrang.$action", [
+            'status' => $response->status(),
+            'successful' => $response->successful(),
+            'body_length' => strlen($body),
+            'body_first_300' => substr($visible, 0, 300),
+        ]);
+
+        return [
+            'success' => $response->successful(),
+            'status' => $response->status(),
+            'body' => $visible,
+        ];
+    }
+
     public function getIndonesianHolidays(int $year, ?int $month = null): array
     {
         $params = $year === (int) now()->year ? [] : ['year' => $year];
