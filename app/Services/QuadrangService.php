@@ -80,8 +80,24 @@ class QuadrangService
                 'month' => $this->month,
             ]);
 
-        return $response->successful()
-            && $response->body() === '<script>window.location.reload()</script>';
+        $body = $response->body();
+        $scriptOk = $body === '<script>window.location.reload()</script>';
+        $alreadyExists = str_contains($body, 'sudah ada') || str_contains($body, 'already exists');
+
+        \Log::info('quadrang.createTimeSheet', [
+            'status' => $response->status(),
+            'successful' => $response->successful(),
+            'script_ok' => $scriptOk,
+            'already_exists' => $alreadyExists,
+            'body_length' => strlen($body),
+            'body_first_300' => substr(preg_replace('/\s+/', ' ', strip_tags($body)), 0, 300),
+        ]);
+
+        if (! $response->successful()) {
+            return false;
+        }
+
+        return $scriptOk || $alreadyExists;
     }
 
     /**
