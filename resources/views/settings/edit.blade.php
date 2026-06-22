@@ -43,13 +43,7 @@
                 <a href="{{ route('timesheet.index') }}" class="text-decoration-none small">&larr; Kembali</a>
                 <h1 class="h3 fw-bold mb-0 mt-2">Quadrang Settings</h1>
             </div>
-            <div class="d-flex align-items-center gap-2">
-                <span class="badge text-bg-light border px-3 py-2">admin</span>
-                <form method="post" action="{{ route('settings.token.logout') }}" class="m-0">
-                    @csrf
-                    <button type="submit" class="btn btn-sm btn-outline-secondary">Logout</button>
-                </form>
-            </div>
+            <span class="badge text-bg-light border px-3 py-2">local-only</span>
         </div>
 
         @if (session('result'))
@@ -58,8 +52,9 @@
             </div>
         @endif
 
-        <form method="post" action="{{ url()->current() }}">
+        <form method="post" action="{{ route('settings.update') }}">
             @csrf
+            @method('PATCH')
 
             <div class="card soft-card rounded-4 border-0 mb-4">
                 <div class="card-body p-4 p-lg-5">
@@ -91,7 +86,7 @@
             <div class="card soft-card rounded-4 border-0 mb-4">
                 <div class="card-body p-4 p-lg-5">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h2 class="h5 fw-bold mb-0">Task Templates</h2>
+                        <h2 class="h5 fw-bold mb-0">Default Template</h2>
                         <a href="{{ route('settings.template.create') }}" class="btn btn-sm btn-outline-primary">+ Tambah template</a>
                     </div>
                     <p class="text-secondary small mb-3">Template yang ditandai <strong>Default</strong> akan dipakai saat membuat task.</p>
@@ -128,14 +123,8 @@
                                         <td>{{ $tpl->start_at->format('H:i') }} - {{ $tpl->end_at->format('H:i') }}</td>
                                         <td>{{ $tpl->location }}</td>
                                         <td><code>{{ $tpl->skills }}</code></td>
-                        <td>
-                            <form method="post" action="{{ route('settings.template.destroy', $tpl) }}" class="d-inline">
-                                @csrf @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-outline-danger"
-                                                    onclick="return confirm('Hapus template {{ $tpl->name }}?')">
-                                                    Hapus
-                                                </button>
-                                            </form>
+                                        <td>
+                                            <a href="{{ route('settings.template.edit', $tpl) }}" class="btn btn-sm btn-outline-secondary">Edit</a>
                                         </td>
                                     </tr>
                                 @empty
@@ -152,6 +141,29 @@
                 <a href="{{ route('timesheet.index') }}" class="btn btn-link">Batal</a>
             </div>
         </form>
+
+        @if ($templates->isNotEmpty())
+            <div class="card soft-card rounded-4 border-0 mt-4">
+                <div class="card-body p-4 p-lg-5">
+                    <h2 class="h5 fw-bold mb-3">Hapus Template</h2>
+                    <p class="text-secondary small mb-3">Template <strong>default</strong> tidak bisa dihapus. Set template lain sebagai default dulu.</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach ($templates as $tpl)
+                            @if (! $tpl->is_default)
+                                <form method="post" action="{{ route('settings.template.destroy', $tpl) }}" class="m-0">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                                        onclick="return confirm('Hapus template {{ $tpl->name }}?')">
+                                        Hapus &ldquo;{{ $tpl->name }}&rdquo;
+                                    </button>
+                                </form>
+                            @endif
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+        @endif
     </main>
 </body>
 </html>

@@ -13,12 +13,8 @@ Route::post('/timesheet/create', [TimeSheetController::class, 'store'])->name('t
 Route::post('/api/timesheet/create', [TimeSheetController::class, 'create'])->name('timesheet.api.create');
 
 Route::prefix('settings')->name('settings.')->group(function () {
-    Route::get('/token', [SettingsController::class, 'tokenForm'])->name('token.form');
-    Route::post('/token', [SettingsController::class, 'tokenLogin'])->name('token.login');
-    Route::post('/logout', [SettingsController::class, 'tokenLogout'])->name('token.logout');
-
     Route::get('/', [SettingsController::class, 'edit'])->name('edit');
-    Route::post('/', [SettingsController::class, 'update'])->name('update');
+    Route::patch('/', [SettingsController::class, 'update'])->name('update');
 
     Route::get('/template/new', [TaskTemplateController::class, 'create'])->name('template.create');
     Route::post('/template', [TaskTemplateController::class, 'store'])->name('template.store');
