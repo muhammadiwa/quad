@@ -32,7 +32,7 @@ class QuadrangService
             'month' => $this->month,
         ];
 
-        $response = Http::asForm()->withHeaders([
+        $response = Http::timeout(20)->connectTimeout(15)->retry(3, 2000, throw: false)->asForm()->withHeaders([
             'X-CSRFToken' => config('quadrang.config.csrf_token'),
             'Referer' => 'https://quadrang.steradian.co.id/attendance/timesheet-view',
             'Cookie' => config('quadrang.config.cookie'),
@@ -50,7 +50,7 @@ class QuadrangService
      */
     public function getCurrentTimeSheet(): Response
     {
-        return Http::withHeaders([
+        return Http::timeout(20)->connectTimeout(15)->retry(3, 2000, throw: false)->withHeaders([
             'Cookie' => config('quadrang.config.cookie'),
         ])->get("https://quadrang.steradian.co.id/attendance/timesheet-view/?month=$this->month&year=$this->year");
     }
@@ -138,23 +138,32 @@ class QuadrangService
                 ],
             ]);
 
-            $response = Http::asMultipart()
-                ->withHeaders([
-                    'X-CSRFToken' => config('quadrang.config.csrf_token'),
-                    'Referer' => "https://quadrang.steradian.co.id/attendance/task/$timeSheetId",
-                    'Cookie' => config('quadrang.config.cookie'),
-                ])->post("https://quadrang.steradian.co.id/attendance/task-create/$timeSheetId", $multipartPayload);
+            try {
+                $response = Http::timeout(20)->connectTimeout(15)->retry(3, 2000, throw: false)->asMultipart()
+                    ->withHeaders([
+                        'X-CSRFToken' => config('quadrang.config.csrf_token'),
+                        'Referer' => "https://quadrang.steradian.co.id/attendance/task/$timeSheetId",
+                        'Cookie' => config('quadrang.config.cookie'),
+                    ])->post("https://quadrang.steradian.co.id/attendance/task-create/$timeSheetId", $multipartPayload);
 
-            if ($response->successful()) {
-                $created[] = $dateKey;
+                if ($response && $response->successful()) {
+                    $created[] = $dateKey;
 
-                continue;
+                    continue;
+                }
+
+                $failed[] = [
+                    'date' => $dateKey,
+                    'status' => $response?->status() ?? 0,
+                ];
+            } catch (\Throwable $e) {
+                $failed[] = [
+                    'date' => $dateKey,
+                    'status' => 'exception: ' . $e->getMessage(),
+                ];
             }
 
-            $failed[] = [
-                'date' => $dateKey,
-                'status' => $response->status(),
-            ];
+            usleep(300000);
         }
 
         return [
@@ -181,7 +190,7 @@ class QuadrangService
     {
         $params = $year === (int) now()->year ? [] : ['year' => $year];
 
-        $response = Http::timeout(10)->get('https://libur.deno.dev/api', $params);
+        $response = Http::timeout(15)->connectTimeout(10)->retry(3, 2000, throw: false)->get('https://libur.deno.dev/api', $params);
 
         if ($response->failed()) {
             return [];

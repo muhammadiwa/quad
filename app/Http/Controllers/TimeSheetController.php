@@ -27,6 +27,8 @@ class TimeSheetController extends Controller
      */
     public function store(Request $request)
     {
+        set_time_limit(300);
+
         $validated = $request->validate([
             'task' => ['required', 'string', 'max:1000'],
             'start_date' => ['required', 'date'],
@@ -106,6 +108,8 @@ class TimeSheetController extends Controller
      */
     public function create(Request $request): JsonResponse
     {
+        set_time_limit(300);
+
         $validated = $request->validate([
             'task' => ['nullable', 'string', 'max:1000'],
             'start_date' => ['nullable', 'date'],
