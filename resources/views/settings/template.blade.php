@@ -28,10 +28,10 @@
 </head>
 <body>
     <main class="container app-shell py-5">
-        <a href="{{ route('settings.edit', ['token' => request()->cookie('quadrang_admin_token')]) }}" class="text-decoration-none small">&larr; Kembali</a>
+        <a href="{{ route('settings.edit') }}" class="text-decoration-none small">&larr; Kembali</a>
         <h1 class="h3 fw-bold mb-4 mt-2">{{ $isNew ? 'Tambah' : 'Edit' }} Task Template</h1>
 
-        <form method="post" action="{{ $isNew ? route('settings.template.store', ['token' => request()->cookie('quadrang_admin_token')]) : route('settings.template.update', ['template' => $template, 'token' => request()->cookie('quadrang_admin_token')]) }}">
+        <form method="post" action="{{ $isNew ? route('settings.template.store') : route('settings.template.update', ['template' => $template]) }}">
             @csrf
             @if (! $isNew) @method('PUT') @endif
 
@@ -76,7 +76,7 @@
 
             <div class="d-grid d-sm-flex gap-2 mt-4">
                 <button type="submit" class="btn btn-primary btn-lg px-4">Simpan</button>
-                <a href="{{ route('settings.edit', ['token' => request()->cookie('quadrang_admin_token')]) }}" class="btn btn-link">Batal</a>
+                <a href="{{ route('settings.edit') }}" class="btn btn-link">Batal</a>
             </div>
         </form>
     </main>

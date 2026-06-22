@@ -10,7 +10,7 @@ class TaskTemplateController extends Controller
 {
     public function create(Request $request)
     {
-        $this->guard($request);
+        $this->guardOrRedirect($request);
 
         return view('settings.template', [
             'template' => new TaskTemplate([
@@ -27,7 +27,7 @@ class TaskTemplateController extends Controller
 
     public function edit(Request $request, TaskTemplate $template)
     {
-        $this->guard($request);
+        $this->guardOrRedirect($request);
 
         return view('settings.template', [
             'template' => $template,
@@ -37,29 +37,29 @@ class TaskTemplateController extends Controller
 
     public function store(Request $request)
     {
-        $this->guard($request);
+        $this->guardOrRedirect($request);
         $data = $this->validateData($request);
 
         TaskTemplate::create($data);
 
-        return redirect()->route('settings.edit', ['token' => $this->token($request)])
+        return redirect()->route('settings.edit')
             ->with('result', ['success' => true, 'message' => 'Template dibuat.']);
     }
 
     public function update(Request $request, TaskTemplate $template)
     {
-        $this->guard($request);
+        $this->guardOrRedirect($request);
         $data = $this->validateData($request);
 
         $template->update($data);
 
-        return redirect()->route('settings.edit', ['token' => $this->token($request)])
+        return redirect()->route('settings.edit')
             ->with('result', ['success' => true, 'message' => 'Template diperbarui.']);
     }
 
     public function destroy(Request $request, TaskTemplate $template)
     {
-        $this->guard($request);
+        $this->guardOrRedirect($request);
 
         if ($template->is_default) {
             return back()->with('result', [
@@ -70,7 +70,7 @@ class TaskTemplateController extends Controller
 
         $template->delete();
 
-        return redirect()->route('settings.edit', ['token' => $this->token($request)])
+        return redirect()->route('settings.edit')
             ->with('result', ['success' => true, 'message' => 'Template dihapus.']);
     }
 
@@ -88,7 +88,7 @@ class TaskTemplateController extends Controller
         ]);
     }
 
-    private function guard(Request $request): void
+    private function guardOrRedirect(Request $request): void
     {
         $expected = config('quadrang.admin_token');
         if (! $expected) {
@@ -98,14 +98,16 @@ class TaskTemplateController extends Controller
         $provided = $request->query('token') ?? $request->cookie('quadrang_admin_token');
 
         if (! $provided || ! hash_equals($expected, $provided)) {
-            abort(401, 'Token admin salah.');
+            if ($request->expectsJson()) {
+                abort(401, 'Token admin salah.');
+            }
+
+            redirect()->route('settings.token.form')->send();
+            exit;
         }
 
-        Cookie::queue(Cookie::forever('quadrang_admin_token', $provided));
-    }
-
-    private function token(Request $request): string
-    {
-        return $request->query('token') ?? $request->cookie('quadrang_admin_token');
+        if (! $request->cookie('quadrang_admin_token')) {
+            Cookie::queue(Cookie::forever('quadrang_admin_token', $provided));
+        }
     }
 }

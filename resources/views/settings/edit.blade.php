@@ -43,7 +43,13 @@
                 <a href="{{ route('timesheet.index') }}" class="text-decoration-none small">&larr; Kembali</a>
                 <h1 class="h3 fw-bold mb-0 mt-2">Quadrang Settings</h1>
             </div>
-            <span class="badge text-bg-light border px-3 py-2">token-protected</span>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge text-bg-light border px-3 py-2">admin</span>
+                <form method="post" action="{{ route('settings.token.logout') }}" class="m-0">
+                    @csrf
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">Logout</button>
+                </form>
+            </div>
         </div>
 
         @if (session('result'))
@@ -122,10 +128,10 @@
                                         <td>{{ $tpl->start_at->format('H:i') }} - {{ $tpl->end_at->format('H:i') }}</td>
                                         <td>{{ $tpl->location }}</td>
                                         <td><code>{{ $tpl->skills }}</code></td>
-                                        <td>
-                                            <form method="post" action="{{ route('settings.template.destroy', $tpl) }}" class="d-inline">
-                                                @csrf @method('DELETE')
-                                                <button type="submit" class="btn btn-sm btn-outline-danger"
+                        <td>
+                            <form method="post" action="{{ route('settings.template.destroy', $tpl) }}" class="d-inline">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="btn btn-sm btn-outline-danger"
                                                     onclick="return confirm('Hapus template {{ $tpl->name }}?')">
                                                     Hapus
                                                 </button>
