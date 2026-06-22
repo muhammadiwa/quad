@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\QuadrangSetting;
+use App\Models\TaskTemplate;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\Client\ConnectionException;
@@ -14,11 +16,49 @@ class QuadrangService
 
     public string $month;
 
+    private const REQUEST_TIMEOUT = 20;
+
+    private const CONNECT_TIMEOUT = 15;
+
+    private const RETRY_TIMES = 3;
+
+    private const RETRY_SLEEP_MS = 2000;
+
     public function __construct()
     {
         $now = Carbon::now();
-        $this->year = $now->year;
-        $this->month = $now->month;
+        $this->year = (string) $now->year;
+        $this->month = (string) $now->month;
+    }
+
+    public function baseUrl(): string
+    {
+        return QuadrangSetting::get('base_url', 'https://quadrang.steradian.co.id');
+    }
+
+    public function cookie(): string
+    {
+        return QuadrangSetting::get('cookie', '');
+    }
+
+    public function csrfToken(): string
+    {
+        return QuadrangSetting::get('csrf_token', '');
+    }
+
+    public function userAgent(): string
+    {
+        return QuadrangSetting::get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    }
+
+    private function commonHeaders(): array
+    {
+        return [
+            'User-Agent' => $this->userAgent(),
+            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language' => 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Cookie' => $this->cookie(),
+        ];
     }
 
     /**
@@ -26,23 +66,22 @@ class QuadrangService
      */
     public function createTimeSheet(): bool
     {
-        $payload = [
-            'id_user' => '',
-            'year' => $this->year,
-            'month' => $this->month,
-        ];
+        $response = Http::timeout(self::REQUEST_TIMEOUT)
+            ->connectTimeout(self::CONNECT_TIMEOUT)
+            ->retry(self::RETRY_TIMES, self::RETRY_SLEEP_MS, throw: false)
+            ->withHeaders(array_merge($this->commonHeaders(), [
+                'X-CSRFToken' => $this->csrfToken(),
+                'Referer' => $this->baseUrl() . '/attendance/timesheet-view',
+            ]))
+            ->asForm()
+            ->post($this->baseUrl() . '/attendance/timesheet-create', [
+                'id_user' => '',
+                'year' => $this->year,
+                'month' => $this->month,
+            ]);
 
-        $response = Http::timeout(20)->connectTimeout(15)->retry(3, 2000, throw: false)->asForm()->withHeaders([
-            'X-CSRFToken' => config('quadrang.config.csrf_token'),
-            'Referer' => 'https://quadrang.steradian.co.id/attendance/timesheet-view',
-            'Cookie' => config('quadrang.config.cookie'),
-        ])->post('https://quadrang.steradian.co.id/attendance/timesheet-create', $payload);
-
-        if ($response->body() !== '<script>window.location.reload()</script>' || $response->failed()) {
-            return false;
-        }
-
-        return true;
+        return $response->successful()
+            && $response->body() === '<script>window.location.reload()</script>';
     }
 
     /**
@@ -50,16 +89,46 @@ class QuadrangService
      */
     public function getCurrentTimeSheet(): Response
     {
-        return Http::timeout(20)->connectTimeout(15)->retry(3, 2000, throw: false)->withHeaders([
-            'Cookie' => config('quadrang.config.cookie'),
-        ])->get("https://quadrang.steradian.co.id/attendance/timesheet-view/?month=$this->month&year=$this->year");
+        return Http::timeout(self::REQUEST_TIMEOUT)
+            ->connectTimeout(self::CONNECT_TIMEOUT)
+            ->retry(self::RETRY_TIMES, self::RETRY_SLEEP_MS, throw: false)
+            ->withHeaders($this->commonHeaders())
+            ->get($this->baseUrl() . "/attendance/timesheet-view/?month={$this->month}&year={$this->year}");
+    }
+
+    public function findCurrentTimesheetId(string $body): ?string
+    {
+        $monthName = Carbon::createFromDate((int) $this->year, (int) $this->month, 1)
+            ->locale('id')->monthName;
+        $year = (string) $this->year;
+
+        $pattern = '#<div class="oh-sticky-table__tr">(.*?)<a href="/attendance/task/(\d+)"#s';
+
+        if (preg_match_all($pattern, $body, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $m) {
+                if (str_contains($m[1], ">$monthName<") && str_contains($m[1], ">$year<")) {
+                    return $m[2];
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
      * @throws ConnectionException
      */
-    public function createTask(string $timeSheetId, string $task, ?string $startDate = null, ?string $endDate = null, bool $skipHolidays = true): array
-    {
+    public function createTask(
+        string $timeSheetId,
+        string $task,
+        ?string $startDate = null,
+        ?string $endDate = null,
+        bool $skipHolidays = true,
+        ?TaskTemplate $template = null,
+        ?\Closure $onProgress = null,
+    ): array {
+        $template ??= TaskTemplate::default();
+
         $start = $startDate ? Carbon::parse($startDate) : Carbon::createFromDate($this->year, $this->month, 1);
         $end = $endDate ? Carbon::parse($endDate) : $start->copy()->endOfMonth();
 
@@ -69,40 +138,18 @@ class QuadrangService
         $period = CarbonPeriod::create($start, $end);
         $holidays = $skipHolidays ? $this->getIndonesianHolidays((int) $this->year, (int) $this->month) : [];
 
-        $basePayload = [
-            [
-                'name' => 'type_task',
-                'contents' => 'Work',
-            ],
-            [
-                'name' => 'id_project',
-                'contents' => '17',
-            ],
-            [
-                'name' => 'start_at',
-                'contents' => '07:30',
-            ],
-            [
-                'name' => 'end_at',
-                'contents' => '16:30',
-            ],
-            [
-                'name' => 'description',
-                'contents' => $task,
-            ],
-            [
-                'name' => 'location',
-                'contents' => 'On Site',
-            ],
-            [
-                'name' => 'skills',
-                'contents' => '70',
-            ],
-            [
-                'name' => 'custom_location',
-                'contents' => null,
-            ],
-        ];
+        $basePayload = $template
+            ? $template->toMultipartBase()
+            : [
+                ['name' => 'type_task', 'contents' => 'Work'],
+                ['name' => 'id_project', 'contents' => '17'],
+                ['name' => 'start_at', 'contents' => '07:30'],
+                ['name' => 'end_at', 'contents' => '16:30'],
+                ['name' => 'location', 'contents' => 'On Site'],
+                ['name' => 'skills', 'contents' => '70'],
+                ['name' => 'custom_location', 'contents' => null],
+            ];
+        $basePayload[] = ['name' => 'description', 'contents' => $task];
 
         $created = [];
         $failed = [];
@@ -128,26 +175,33 @@ class QuadrangService
             }
 
             $multipartPayload = array_merge($basePayload, [
-                [
-                    'name' => 'date',
-                    'contents' => (int) $date->format('d'),
-                ],
-                [
-                    'name' => 'end_date',
-                    'contents' => (int) $date->format('d'),
-                ],
+                ['name' => 'date', 'contents' => (int) $date->format('d')],
+                ['name' => 'end_date', 'contents' => (int) $date->format('d')],
             ]);
 
             try {
-                $response = Http::timeout(20)->connectTimeout(15)->retry(3, 2000, throw: false)->asMultipart()
-                    ->withHeaders([
-                        'X-CSRFToken' => config('quadrang.config.csrf_token'),
-                        'Referer' => "https://quadrang.steradian.co.id/attendance/task/$timeSheetId",
-                        'Cookie' => config('quadrang.config.cookie'),
-                    ])->post("https://quadrang.steradian.co.id/attendance/task-create/$timeSheetId", $multipartPayload);
+                $response = Http::timeout(self::REQUEST_TIMEOUT)
+                    ->connectTimeout(self::CONNECT_TIMEOUT)
+                    ->retry(self::RETRY_TIMES, self::RETRY_SLEEP_MS, throw: false)
+                    ->asMultipart()
+                    ->withHeaders(array_merge($this->commonHeaders(), [
+                        'X-CSRFToken' => $this->csrfToken(),
+                        'Referer' => $this->baseUrl() . "/attendance/task/{$timeSheetId}",
+                    ]))
+                    ->post($this->baseUrl() . "/attendance/task-create/{$timeSheetId}", $multipartPayload);
 
                 if ($response && $response->successful()) {
                     $created[] = $dateKey;
+
+                    if ($onProgress) {
+                        $onProgress([
+                            'created' => count($created),
+                            'failed' => count($failed),
+                            'last_date' => $dateKey,
+                        ]);
+                    }
+
+                    usleep(300000);
 
                     continue;
                 }
@@ -190,7 +244,10 @@ class QuadrangService
     {
         $params = $year === (int) now()->year ? [] : ['year' => $year];
 
-        $response = Http::timeout(15)->connectTimeout(10)->retry(3, 2000, throw: false)->get('https://libur.deno.dev/api', $params);
+        $response = Http::timeout(15)
+            ->connectTimeout(10)
+            ->retry(self::RETRY_TIMES, self::RETRY_SLEEP_MS, throw: false)
+            ->get('https://libur.deno.dev/api', $params);
 
         if ($response->failed()) {
             return [];
