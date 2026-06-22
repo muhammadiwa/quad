@@ -83,87 +83,81 @@
                 </div>
             </div>
 
-            <div class="card soft-card rounded-4 border-0 mb-4">
-                <div class="card-body p-4 p-lg-5">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h2 class="h5 fw-bold mb-0">Default Template</h2>
-                        <a href="{{ route('settings.template.create') }}" class="btn btn-sm btn-outline-primary">+ Tambah template</a>
-                    </div>
-                    <p class="text-secondary small mb-3">Template yang ditandai <strong>Default</strong> akan dipakai saat membuat task.</p>
-
-                    <div class="table-responsive">
-                        <table class="table align-middle">
-                            <thead class="small text-secondary">
-                                <tr>
-                                    <th></th>
-                                    <th>Nama</th>
-                                    <th>Project</th>
-                                    <th>Jam kerja</th>
-                                    <th>Location</th>
-                                    <th>Skills</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse ($templates as $tpl)
-                                    <tr class="{{ $tpl->is_default ? 'table-primary' : '' }}">
-                                        <td style="width: 40px;">
-                                            <input class="form-check-input" type="radio" name="default_template_id"
-                                                value="{{ $tpl->id }}" @checked($tpl->is_default)>
-                                        </td>
-                                        <td>
-                                            <a href="{{ route('settings.template.edit', $tpl) }}" class="text-decoration-none fw-semibold">
-                                                {{ $tpl->name }}
-                                            </a>
-                                            @if ($tpl->is_default)
-                                                <span class="badge text-bg-primary ms-2">Default</span>
-                                            @endif
-                                        </td>
-                                        <td><code>{{ $tpl->id_project }}</code></td>
-                                        <td>{{ $tpl->start_at->format('H:i') }} - {{ $tpl->end_at->format('H:i') }}</td>
-                                        <td>{{ $tpl->location }}</td>
-                                        <td><code>{{ $tpl->skills }}</code></td>
-                                        <td>
-                                            <a href="{{ route('settings.template.edit', $tpl) }}" class="btn btn-sm btn-outline-secondary">Edit</a>
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr><td colspan="7" class="text-center text-secondary py-4">Belum ada template.</td></tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
             <div class="d-grid d-sm-flex gap-2">
                 <button type="submit" class="btn btn-primary btn-lg px-4">Simpan Pengaturan</button>
                 <a href="{{ route('timesheet.index') }}" class="btn btn-link">Batal</a>
             </div>
         </form>
 
-        @if ($templates->isNotEmpty())
-            <div class="card soft-card rounded-4 border-0 mt-4">
-                <div class="card-body p-4 p-lg-5">
-                    <h2 class="h5 fw-bold mb-3">Hapus Template</h2>
-                    <p class="text-secondary small mb-3">Template <strong>default</strong> tidak bisa dihapus. Set template lain sebagai default dulu.</p>
-                    <div class="d-flex flex-wrap gap-2">
-                        @foreach ($templates as $tpl)
-                            @if (! $tpl->is_default)
-                                <form method="post" action="{{ route('settings.template.destroy', $tpl) }}" class="m-0">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-outline-danger"
-                                        onclick="return confirm('Hapus template {{ $tpl->name }}?')">
-                                        Hapus &ldquo;{{ $tpl->name }}&rdquo;
-                                    </button>
-                                </form>
-                            @endif
-                        @endforeach
-                    </div>
+        <div class="card soft-card rounded-4 border-0 mt-4">
+            <div class="card-body p-4 p-lg-5">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h5 fw-bold mb-0">Task Templates</h2>
+                    <a href="{{ route('settings.template.create') }}" class="btn btn-sm btn-outline-primary">+ Tambah template</a>
+                </div>
+                <p class="text-secondary small mb-3">
+                    Template <strong>default</strong> dipakai saat membuat task. Klik "Jadikan Default" untuk mengganti.
+                </p>
+
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead class="small text-secondary">
+                            <tr>
+                                <th>Nama</th>
+                                <th>Project</th>
+                                <th>Jam kerja</th>
+                                <th>Location</th>
+                                <th>Skills</th>
+                                <th class="text-end">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse ($templates as $tpl)
+                                <tr class="{{ $tpl->is_default ? 'table-primary' : '' }}">
+                                    <td>
+                                        <a href="{{ route('settings.template.edit', $tpl) }}" class="text-decoration-none fw-semibold">
+                                            {{ $tpl->name }}
+                                        </a>
+                                        @if ($tpl->is_default)
+                                            <span class="badge text-bg-primary ms-2">Default</span>
+                                        @endif
+                                    </td>
+                                    <td><code>{{ $tpl->id_project }}</code></td>
+                                    <td>{{ $tpl->start_at->format('H:i') }} - {{ $tpl->end_at->format('H:i') }}</td>
+                                    <td>{{ $tpl->location }}</td>
+                                    <td><code>{{ $tpl->skills }}</code></td>
+                                    <td class="text-end">
+                                        <div class="d-inline-flex gap-2 align-items-center">
+                                            @if (! $tpl->is_default)
+                                                <form method="post" action="{{ route('settings.update') }}" class="m-0">
+                                                    @csrf
+                                                    @method('PATCH')
+                                                    <input type="hidden" name="default_template_id" value="{{ $tpl->id }}">
+                                                    <button type="submit" class="btn btn-sm btn-outline-primary">Jadikan Default</button>
+                                                </form>
+                                            @endif
+                                            <a href="{{ route('settings.template.edit', $tpl) }}" class="btn btn-sm btn-outline-secondary">Edit</a>
+                                            @if (! $tpl->is_default)
+                                                <form method="post" action="{{ route('settings.template.destroy', $tpl) }}" class="m-0">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                        onclick="return confirm('Hapus template {{ $tpl->name }}?')">
+                                                        Hapus
+                                                    </button>
+                                                </form>
+                                            @endif
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="6" class="text-center text-secondary py-4">Belum ada template.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
                 </div>
             </div>
-        @endif
+        </div>
     </main>
 </body>
 </html>

@@ -37,7 +37,10 @@ class SettingsController extends Controller
         }
 
         if (! empty($data['default_template_id'])) {
-            TaskTemplate::where('id', $data['default_template_id'])->update(['is_default' => true]);
+            $template = TaskTemplate::find($data['default_template_id']);
+            if ($template) {
+                $template->update(['is_default' => true]);
+            }
         }
 
         return back()->with('result', [
