@@ -29,6 +29,10 @@ class TimeSheetController extends Controller
     {
         set_time_limit(300);
 
+        if ($redirect = $this->guardMissingCredentials()) {
+            return $redirect;
+        }
+
         try {
             $validated = $this->validateRange($request, required: true);
         } catch (ValidationException $e) {
@@ -72,6 +76,13 @@ class TimeSheetController extends Controller
     public function create(Request $request): JsonResponse
     {
         set_time_limit(300);
+
+        if ($redirect = $this->guardMissingCredentials()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cookie / CSRF token belum diset di /settings.',
+            ], 503);
+        }
 
         try {
             $validated = $this->validateRange($request, required: false);
@@ -171,5 +182,18 @@ class TimeSheetController extends Controller
     private function redirectBackWithError(Request $request, array $errors)
     {
         return back()->withErrors($errors)->withInput();
+    }
+
+    private function guardMissingCredentials()
+    {
+        if (QuadrangSetting::get('cookie') === ''
+            || QuadrangSetting::get('csrf_token') === '') {
+            return redirect()->route('settings.edit')->with('result', [
+                'success' => false,
+                'message' => 'Cookie / CSRF token belum diset. Paste dari DevTools lalu simpan.',
+            ]);
+        }
+
+        return null;
     }
 }

@@ -12,32 +12,32 @@ class QuadrangSeeder extends Seeder
     {
         QuadrangSetting::set(
             'base_url',
-            env('QUADRANG_BASE_URL', 'https://quadrang.steradian.co.id'),
+            'https://quadrang.steradian.co.id',
             'Quadrang site base URL'
         );
 
         QuadrangSetting::set(
             'csrf_token',
-            env('QUADRANG_CSRF_TOKEN', ''),
-            'X-CSRFToken header value, copy from browser DevTools after login'
+            '',
+            'X-CSRFToken header value. Salin dari DevTools browser setelah login di Quadrang, lalu simpan dari /settings.'
         );
 
         QuadrangSetting::set(
             'cookie',
-            env('QUADRANG_COOKIE', ''),
-            'Full Cookie header value, copy from browser DevTools'
+            '',
+            'Cookie header lengkap. Salin dari DevTools browser setelah login, lalu simpan dari /settings.'
         );
 
         QuadrangSetting::set(
             'default_task_description',
-            env('QUADRANG_DEFAULT_TASK', 'Migrasi ESB ke Brigate dan SOAP ke REST API'),
-            'Default task description prefilled in the form'
+            'Migrasi ESB ke Brigate dan SOAP ke REST API',
+            'Deskripsi task default yang di-prefill di form /timesheet.'
         );
 
         QuadrangSetting::set(
             'user_agent',
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'HTTP User-Agent header sent to Quadrang'
+            'HTTP User-Agent header yang dikirim ke Quadrang.'
         );
 
         if (! TaskTemplate::where('is_default', true)->exists()) {
