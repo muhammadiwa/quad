@@ -252,6 +252,11 @@
 </head>
 <body>
     <main class="container app-shell py-5">
+        <div class="d-flex justify-content-end mb-3">
+            <a href="{{ route('settings.edit') }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                ⚙ Settings
+            </a>
+        </div>
         <div class="card hero-card position-relative rounded-5 mb-4">
             <div class="card-body p-4 p-lg-5 position-relative">
                 <div class="row align-items-center g-4">
