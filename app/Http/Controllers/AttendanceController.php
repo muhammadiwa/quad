@@ -17,59 +17,88 @@ class AttendanceController extends Controller
             return $redirect;
         }
 
-        return view('attendance.index');
+        return view('attendance.index', [
+            'defaultLat' => QuadrangSetting::get('default_lat', ''),
+            'defaultLon' => QuadrangSetting::get('default_lon', ''),
+        ]);
     }
 
     public function clockIn(Request $request): JsonResponse
     {
         if ($redirect = $this->guardMissingCredentials()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cookie / CSRF token belum diset di /settings.',
-            ], 503);
+            return $this->jsonMissingCredentials();
         }
 
-        $data = $request->validate([
-            'lat' => ['required', 'numeric', 'between:-90,90'],
-            'lon' => ['required', 'numeric', 'between:-180,180'],
-        ]);
+        $coords = $this->resolveCoordinates($request);
+        if ($coords instanceof JsonResponse) {
+            return $coords;
+        }
 
-        $result = $this->service->clockIn((float) $data['lat'], (float) $data['lon']);
+        $result = $this->service->clockIn($coords['lat'], $coords['lon']);
 
-        return response()->json([
-            'success' => $result['success'],
-            'status' => $result['status'],
-            'message' => $result['success']
-                ? 'Clock in berhasil dicatat.'
-                : 'Clock in gagal. Cek log untuk detail.',
-            'body_preview' => substr($result['body'], 0, 300),
-        ], $result['success'] ? 200 : 502);
+        return $this->jsonResult('Clock in', $result, $coords);
     }
 
     public function clockOut(Request $request): JsonResponse
     {
         if ($redirect = $this->guardMissingCredentials()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cookie / CSRF token belum diset di /settings.',
-            ], 503);
+            return $this->jsonMissingCredentials();
         }
 
-        $data = $request->validate([
-            'lat' => ['required', 'numeric', 'between:-90,90'],
-            'lon' => ['required', 'numeric', 'between:-180,180'],
-        ]);
+        $coords = $this->resolveCoordinates($request);
+        if ($coords instanceof JsonResponse) {
+            return $coords;
+        }
 
-        $result = $this->service->clockOut((float) $data['lat'], (float) $data['lon']);
+        $result = $this->service->clockOut($coords['lat'], $coords['lon']);
 
+        return $this->jsonResult('Clock out', $result, $coords);
+    }
+
+    private function resolveCoordinates(Request $request): array|JsonResponse
+    {
+        $lat = $request->input('lat', QuadrangSetting::get('default_lat', ''));
+        $lon = $request->input('lon', QuadrangSetting::get('default_lon', ''));
+
+        if ($lat === '' || $lon === '' || $lat === null || $lon === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lat/lon belum diisi. Isi di form atau set default_lat / default_lon di /settings.',
+            ], 400);
+        }
+
+        if (! is_numeric($lat) || ! is_numeric($lon)
+            || (float) $lat < -90 || (float) $lat > 90
+            || (float) $lon < -180 || (float) $lon > 180) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lat harus -90..90, lon harus -180..180.',
+            ], 422);
+        }
+
+        return ['lat' => (float) $lat, 'lon' => (float) $lon];
+    }
+
+    private function jsonResult(string $action, array $result, array $coords): JsonResponse
+    {
         return response()->json([
             'success' => $result['success'],
             'status' => $result['status'],
+            'lat' => $coords['lat'],
+            'lon' => $coords['lon'],
             'message' => $result['success']
-                ? 'Clock out berhasil dicatat.'
-                : 'Clock out gagal. Cek log untuk detail.',
+                ? "$action berhasil dicatat."
+                : "$action gagal. Cek log untuk detail.",
             'body_preview' => substr($result['body'], 0, 300),
         ], $result['success'] ? 200 : 502);
+    }
+
+    private function jsonMissingCredentials(): JsonResponse
+    {
+        return response()->json([
+            'success' => false,
+            'message' => 'Cookie / CSRF token belum diset di /settings.',
+        ], 503);
     }
 
     private function guardMissingCredentials()

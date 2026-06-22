@@ -97,9 +97,9 @@ When Quadrang logs you out, repeat step 2–5.
 | `/timesheet/create` | POST | Web form submission, returns flash message |
 | `/api/timesheet/create` | POST | JSON API, same flow, JSON response |
 | `/timesheet/holidays` | GET | JSON list of Indonesian holidays for a year/month |
-| `/attendance` | GET | Browser page with **Clock In** / **Clock Out** buttons that read `navigator.geolocation` and POST `{lat, lon}` |
-| `/api/attendance/clock-in` | POST | JSON API: `{lat, lon}` → GET `https://quadrang.steradian.co.id/attendance/clock-in` |
-| `/api/attendance/clock-out` | POST | JSON API: `{lat, lon}` → GET `https://quadrang.steradian.co.id/attendance/clock-out` |
+| `/attendance` | GET | Browser page with **Clock In** / **Clock Out** buttons. Page loads with `default_lat` / `default_lon` from `/settings` pre-filled into editable inputs; click **📍 Pakai lokasi saya** to overwrite from `navigator.geolocation` |
+| `/api/attendance/clock-in` | POST | JSON API: `{lat, lon}` (request body) → `default_lat` / `default_lon` (DB fallback) → GET `https://quadrang.steradian.co.id/attendance/clock-in` |
+| `/api/attendance/clock-out` | POST | JSON API: `{lat, lon}` (request body) → `default_lat` / `default_lon` (DB fallback) → GET `https://quadrang.steradian.co.id/attendance/clock-out` |
 | `/settings` | GET / PATCH | Edit `base_url`, `csrf_token`, `cookie`, default template |
 | `/settings/template/new` | GET | New task template form |
 | `/settings/template/{id}` | GET / PUT / DELETE | Edit / update / delete a template |
@@ -248,6 +248,8 @@ env var.
 | `csrf_token` | *(empty)* | `X-CSRFToken` request header |
 | `cookie` | *(empty)* | Full `Cookie` request header |
 | `default_task_description` | `Migrasi ESB ke Brigate dan SOAP ke REST API` | Prefilled in the form |
+| `default_lat` | *(empty)* | Default latitude for Clock In / Clock Out. Leave empty to use browser GPS at submit time |
+| `default_lon` | *(empty)* | Default longitude for Clock In / Clock Out |
 | `user_agent` | Chrome on Windows | Browser-like UA for Quadrang |
 
 `cookie` and `csrf_token` ship **empty on purpose**. The

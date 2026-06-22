@@ -63,7 +63,7 @@
                         Salin nilai <code>Cookie</code> dan <code>X-CSRFToken</code> dari DevTools browser setelah login di Quadrang.
                     </p>
 
-                    @foreach (['base_url', 'csrf_token', 'cookie', 'user_agent', 'default_task_description'] as $key)
+                    @foreach (['base_url', 'csrf_token', 'cookie', 'user_agent', 'default_task_description', 'default_lat', 'default_lon'] as $key)
                         @php $setting = $settings[$key] ?? null; @endphp
                         <div class="mb-4">
                             <label class="form-label fw-semibold">
@@ -72,9 +72,16 @@
                                     <span class="badge text-bg-warning ms-1">sensitive</span>
                                 @endif
                             </label>
-                            <textarea name="settings[{{ $key }}]" rows="{{ $key === 'cookie' || $key === 'user_agent' ? 3 : 1 }}"
-                                class="form-control font-monospace"
-                                placeholder="{{ $setting->description ?? '' }}">{{ old("settings.$key", $setting->value ?? '') }}</textarea>
+                            @if (in_array($key, ['default_lat', 'default_lon']))
+                                <input type="number" step="any" name="settings[{{ $key }}]"
+                                    class="form-control font-monospace"
+                                    placeholder="{{ $setting->description ?? '' }}"
+                                    value="{{ old("settings.$key", $setting->value ?? '') }}">
+                            @else
+                                <textarea name="settings[{{ $key }}]" rows="{{ $key === 'cookie' || $key === 'user_agent' ? 3 : 1 }}"
+                                    class="form-control font-monospace"
+                                    placeholder="{{ $setting->description ?? '' }}">{{ old("settings.$key", $setting->value ?? '') }}</textarea>
+                            @endif
                             @if ($setting?->description)
                                 <div class="form-text">{{ $setting->description }}</div>
                             @endif

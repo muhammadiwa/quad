@@ -40,6 +40,18 @@ class QuadrangSeeder extends Seeder
             'HTTP User-Agent header yang dikirim ke Quadrang.'
         );
 
+        QuadrangSetting::set(
+            'default_lat',
+            '',
+            'Latitude default untuk Clock In / Clock Out. Kosongkan agar browser pakai GPS saat itu juga.'
+        );
+
+        QuadrangSetting::set(
+            'default_lon',
+            '',
+            'Longitude default untuk Clock In / Clock Out. Kosongkan agar browser pakai GPS saat itu juga.'
+        );
+
         if (! TaskTemplate::where('is_default', true)->exists()) {
             TaskTemplate::create([
                 'name' => 'Default Work Task',

@@ -32,6 +32,12 @@ class SettingsController extends Controller
             'default_template_id' => ['nullable', 'integer', 'exists:task_templates,id'],
         ]);
 
+        $validated = $request->validate([
+            'settings' => ['array'],
+            'settings.default_lat' => ['nullable', 'string', 'regex:/^-?\d+(\.\d+)?$/'],
+            'settings.default_lon' => ['nullable', 'string', 'regex:/^-?\d+(\.\d+)?$/'],
+        ]);
+
         foreach ($data['settings'] ?? [] as $key => $value) {
             QuadrangSetting::set($key, $value);
         }

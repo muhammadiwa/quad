@@ -53,6 +53,7 @@
             box-shadow: 0 0 0 6px rgba(22, 163, 74, .16);
         }
         code { font-size: .85rem; color: #4338ca; }
+        input[type="number"] { font-variant-numeric: tabular-nums; }
     </style>
 </head>
 <body>
@@ -70,9 +71,32 @@
                 </div>
                 <h1 class="display-6 fw-bold mb-2">Clock In / Clock Out</h1>
                 <p class="text-secondary mb-0">
-                    Klik tombol di bawah. Browser akan minta izin lokasi, lalu kami forward ke
-                    Quadrang sebagai <code>?lat=...&amp;lon=...</code> pakai session cookie Anda.
+                    Isi koordinat (atau klik "Pakai lokasi saya"), lalu klik Clock In / Clock Out.
+                    Default dari <code>/settings</code> sudah ter-prefill di bawah.
                 </p>
+            </div>
+        </div>
+
+        <div class="card soft-card rounded-4 border-0 mb-4">
+            <div class="card-body p-4">
+                <h2 class="h6 fw-bold mb-3">Koordinat</h2>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Latitude (-90 .. 90)</label>
+                        <input type="number" step="any" id="latInput" class="form-control form-control-lg font-monospace"
+                            value="{{ $defaultLat }}" placeholder="-6.218656">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Longitude (-180 .. 180)</label>
+                        <input type="number" step="any" id="lonInput" class="form-control form-control-lg font-monospace"
+                            value="{{ $defaultLon }}" placeholder="106.812785">
+                    </div>
+                </div>
+                <button type="button" id="btnUseLocation" class="btn btn-outline-secondary">
+                    <span class="spinner-border spinner-border-sm d-none me-2" id="spinGeo"></span>
+                    📍 Pakai lokasi saya saat ini
+                </button>
+                <div id="geoStatus" class="text-secondary small mt-2"></div>
             </div>
         </div>
 
@@ -108,82 +132,105 @@
                 </div>
             </div>
         </div>
-
-        <div id="lastLocation" class="text-center text-secondary small mt-4"></div>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
         const CSRF = document.querySelector('meta[name="csrf-token"]').content;
-        const lastLocEl = document.getElementById('lastLocation');
+        const geoStatus = document.getElementById('geoStatus');
+
+        function readCoords() {
+            const lat = parseFloat(document.getElementById('latInput').value);
+            const lon = parseFloat(document.getElementById('lonInput').value);
+            return { lat, lon, ok: Number.isFinite(lat) && Number.isFinite(lon) };
+        }
 
         async function call(action, btn, spinner) {
-            if (!navigator.geolocation) {
-                Swal.fire('Error', 'Browser tidak mendukung geolocation.', 'error');
+            const { lat, lon, ok } = readCoords();
+            if (! ok) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Koordinat belum diisi',
+                    text: 'Isi lat/lon dulu atau klik "Pakai lokasi saya".',
+                });
                 return;
             }
 
             btn.disabled = true;
             spinner.classList.remove('d-none');
-            btn.blur();
 
-            navigator.geolocation.getCurrentPosition(async (pos) => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
-                const acc = pos.coords.accuracy;
+            try {
+                const res = await fetch(action, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRFToken': CSRF,
+                    },
+                    body: JSON.stringify({ lat, lon }),
+                });
 
-                lastLocEl.innerHTML = `Lokasi terakhir: <code>${lat.toFixed(6)}, ${lon.toFixed(6)}</code> &plusmn; ${Math.round(acc)} m`;
+                const data = await res.json();
 
-                try {
-                    const res = await fetch(action, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRFToken': CSRF,
-                        },
-                        body: JSON.stringify({ lat, lon }),
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil',
+                        text: data.message,
+                        footer: `<small>lat=${(+lat).toFixed(6)}, lon=${(+lon).toFixed(6)}</small>`,
+                        confirmButtonColor: '#16a34a',
                     });
-
-                    const data = await res.json();
-
-                    if (data.success) {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Berhasil',
-                            text: data.message,
-                            footer: `<small>lat=${lat.toFixed(6)}, lon=${lon.toFixed(6)}</small>`,
-                            confirmButtonColor: '#16a34a',
-                        });
-                    } else {
-                        Swal.fire({
-                            icon: 'error',
-                            title: `Gagal (HTTP ${data.status || '?'})`,
-                            text: data.message,
-                            footer: data.body_preview ? `<small style="text-align:left;">${data.body_preview.substring(0, 200)}</small>` : '',
-                            confirmButtonColor: '#4f46e5',
-                        });
-                    }
-                } catch (err) {
-                    Swal.fire('Error jaringan', err.message, 'error');
-                } finally {
-                    btn.disabled = false;
-                    spinner.classList.add('d-none');
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: `Gagal (HTTP ${data.status || '?'})`,
+                        text: data.message,
+                        footer: data.body_preview
+                            ? `<small style="text-align:left;">${data.body_preview.substring(0, 200)}</small>`
+                            : '',
+                        confirmButtonColor: '#4f46e5',
+                    });
                 }
-            }, (err) => {
+            } catch (err) {
+                Swal.fire('Error jaringan', err.message, 'error');
+            } finally {
                 btn.disabled = false;
                 spinner.classList.add('d-none');
+            }
+        }
+
+        document.getElementById('btnUseLocation').addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                Swal.fire('Error', 'Browser tidak mendukung geolocation.', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('btnUseLocation');
+            const spin = document.getElementById('spinGeo');
+            btn.disabled = true;
+            spin.classList.remove('d-none');
+            geoStatus.textContent = 'Mengambil lokasi...';
+
+            navigator.geolocation.getCurrentPosition((pos) => {
+                document.getElementById('latInput').value = pos.coords.latitude;
+                document.getElementById('lonInput').value = pos.coords.longitude;
+                geoStatus.innerHTML = `Lokasi dimuat: <code>${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}</code> &plusmn; ${Math.round(pos.coords.accuracy)} m`;
+                btn.disabled = false;
+                spin.classList.add('d-none');
+            }, (err) => {
+                btn.disabled = false;
+                spin.classList.add('d-none');
                 let msg = 'Gagal dapat lokasi.';
                 if (err.code === 1) msg = 'Izin lokasi ditolak. Aktifkan GPS / location permission.';
                 else if (err.code === 2) msg = 'Lokasi tidak tersedia.';
                 else if (err.code === 3) msg = 'Timeout dapat lokasi.';
-                Swal.fire('Geolocation error', msg, 'warning');
+                geoStatus.textContent = msg;
             }, {
                 enableHighAccuracy: true,
                 timeout: 10000,
                 maximumAge: 0,
             });
-        }
+        });
 
         document.getElementById('btnClockIn').addEventListener('click', () => {
             call('/api/attendance/clock-in', document.getElementById('btnClockIn'), document.getElementById('spinIn'));
