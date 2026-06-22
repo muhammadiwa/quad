@@ -60,19 +60,33 @@ php artisan serve                # http://127.0.0.1:8000
 
 ## First-time configuration
 
+After `php artisan migrate --force && php artisan db:seed`, the SQLite
+database is populated with sensible defaults — but **`cookie` and
+`csrf_token` are empty on purpose** (sensitive, per-installation).
+
+If you try to submit the timesheet form before filling them in, the
+controller redirects you straight to `/settings` with a flash message
+naming the missing field. Or open it yourself:
+
 1. Open `https://quadrang.steradian.co.id` in Chrome and log in.
 2. Open DevTools → **Application** → **Cookies** →
-   `https://quadrang.steradian.co.id`. Copy the value of `csrftoken`
+   `https://quadrang.steradian.co.id`. Copy the values of `csrftoken`
    and `sessionid`.
 3. Open DevTools → **Network** → click any request Quadrang made →
    copy the full `Cookie` request header.
 4. From the same Network panel, copy the `X-CSRFToken` request header.
-5. Open the app at `http://127.0.0.1:8000`, click **⚙ Settings** in
-   the top-right, paste `csrf_token` and `cookie` into the form, save.
+5. Open the app at `http://127.0.0.1:8000/settings` (or click
+   **⚙ Settings** in the top-right of `/timesheet`). Paste `cookie`
+   and `csrf_token` into the textareas, save.
 6. Back on `/timesheet`, pick a one-month range, preview the calendar,
    click **Jalankan Create Timesheet**.
 
-After that, every time Quadrang logs you out, repeat step 2–5.
+`.env` no longer carries `QUADRANG_*` vars. Once seeded, every Quadrang
+HTTP call reads from the DB through `QuadrangSetting::get()`, so the
+only place to rotate cookie / CSRF is `/settings`. No
+`php artisan config:clear` round-trip needed.
+
+When Quadrang logs you out, repeat step 2–5.
 
 ## Usage
 
@@ -221,17 +235,27 @@ the cache on `saved`/`deleted`.
 
 ## Configuration
 
-| DB key | Default | Purpose |
+All runtime configuration lives in the `quadrang_settings` SQLite table
+and is editable from `/settings`. There is no longer any `QUADRANG_*`
+env var.
+
+| DB key | Seed default | Purpose |
 | --- | --- | --- |
 | `base_url` | `https://quadrang.steradian.co.id` | Quadrang site base URL |
-| `csrf_token` | `""` | `X-CSRFToken` request header |
-| `cookie` | `""` | Full `Cookie` request header |
+| `csrf_token` | *(empty)* | `X-CSRFToken` request header |
+| `cookie` | *(empty)* | Full `Cookie` request header |
 | `default_task_description` | `Migrasi ESB ke Brigate dan SOAP ke REST API` | Prefilled in the form |
 | `user_agent` | Chrome on Windows | Browser-like UA for Quadrang |
 
-All five are seeded from the matching `QUADRANG_*` env vars on first
-migration. After that, edit them from `/settings` — env vars become
-optional.
+`cookie` and `csrf_token` ship **empty on purpose**. The
+`TimeSheetController` checks both at the top of `store()` and `create()`;
+if either is missing, the web path redirects to `/settings` with a
+flash message, and the JSON API returns HTTP 503 with a clear error.
+
+The whole table is cached with `Cache::rememberForever('quadrang_settings', ...)`
+because it is read on every outbound HTTP request to Quadrang; the
+cache is busted automatically on `saved` and `deleted` of any
+`QuadrangSetting` row.
 
 ## Known limitations & roadmap
 
@@ -255,6 +279,12 @@ optional.
 
 ## Troubleshooting
 
+**`Cookie / CSRF token belum diset. Paste dari DevTools lalu simpan.`**
+
+You tried to run `/timesheet/create` before saving credentials. Open
+`/settings`, paste a fresh `Cookie` and `X-CSRFToken` from DevTools
+(see *First-time configuration* above), save, retry.
+
 **`Gagal Memproses — Timesheet ID tidak ditemukan dari halaman Quadrang`**
 
 The HTML returned by Quadrang does not contain
@@ -262,6 +292,12 @@ The HTML returned by Quadrang does not contain
 month. Usually means the cookie or CSRF token in `/settings` has
 expired. Refresh both from the browser DevTools (see *First-time
 configuration* above).
+
+**Timesheet runs but the page says "Timesheet untuk bulan dan tahun ini sudah ada"**
+
+The current month already has a timesheet (manual create, prior run,
+or pre-existing record). `createTimeSheet()` now treats that response
+as success and proceeds to scrape the existing ID. No action needed.
 
 **`cURL error 28: SSL connection timeout`**
 
