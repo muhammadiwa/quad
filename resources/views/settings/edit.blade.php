@@ -63,8 +63,36 @@
                         Salin nilai <code>Cookie</code> dan <code>X-CSRFToken</code> dari DevTools browser setelah login di Quadrang.
                     </p>
 
-                    @foreach (['base_url', 'csrf_token', 'cookie', 'user_agent', 'default_task_description', 'default_lat', 'default_lon'] as $key)
-                        @php $setting = $settings[$key] ?? null; @endphp
+                    @php
+                        $settingKeys = [
+                            'base_url',
+                            'csrf_token',
+                            'cookie',
+                            'user_agent',
+                            'default_task_description',
+                            'default_lat',
+                            'default_lon',
+                            'auto_attendance_enabled',
+                            'auto_attendance_timezone',
+                            'auto_clock_in_time',
+                            'auto_clock_out_time',
+                            'auto_attendance_window_minutes',
+                        ];
+                        $descriptionFallbacks = [
+                            'auto_attendance_enabled' => 'Set 1 untuk mengaktifkan cron auto clock in/out, 0 untuk mematikan.',
+                            'auto_attendance_timezone' => 'Timezone scheduler attendance, contoh: Asia/Jakarta.',
+                            'auto_clock_in_time' => 'Override jam clock in otomatis. Kosongkan untuk mengikuti start_at template default.',
+                            'auto_clock_out_time' => 'Override jam clock out otomatis. Kosongkan untuk mengikuti end_at template default.',
+                            'auto_attendance_window_minutes' => 'Toleransi menit setelah jam target. Default 5 menit.',
+                        ];
+                    @endphp
+
+                    @foreach ($settingKeys as $key)
+                        @php
+                            $setting = $settings[$key] ?? null;
+                            $value = old("settings.$key", $setting->value ?? '');
+                            $description = $setting?->description ?? $descriptionFallbacks[$key] ?? '';
+                        @endphp
                         <div class="mb-4">
                             <label class="form-label fw-semibold">
                                 {{ $key }}
@@ -72,18 +100,36 @@
                                     <span class="badge text-bg-warning ms-1">sensitive</span>
                                 @endif
                             </label>
-                            @if (in_array($key, ['default_lat', 'default_lon']))
+                            @if ($key === 'auto_attendance_enabled')
+                                <input type="hidden" name="settings[{{ $key }}]" value="0">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch"
+                                        id="{{ $key }}" name="settings[{{ $key }}]" value="1"
+                                        @checked(in_array((string) $value, ['1', 'true', 'on', 'yes'], true))>
+                                    <label class="form-check-label" for="{{ $key }}">Aktifkan auto attendance</label>
+                                </div>
+                            @elseif (in_array($key, ['auto_clock_in_time', 'auto_clock_out_time']))
+                                <input type="time" name="settings[{{ $key }}]"
+                                    class="form-control font-monospace"
+                                    placeholder="{{ $description }}"
+                                    value="{{ $value }}">
+                            @elseif (in_array($key, ['default_lat', 'default_lon']))
                                 <input type="number" step="any" name="settings[{{ $key }}]"
                                     class="form-control font-monospace"
-                                    placeholder="{{ $setting->description ?? '' }}"
-                                    value="{{ old("settings.$key", $setting->value ?? '') }}">
+                                    placeholder="{{ $description }}"
+                                    value="{{ $value }}">
+                            @elseif ($key === 'auto_attendance_window_minutes')
+                                <input type="number" min="1" max="60" step="1" name="settings[{{ $key }}]"
+                                    class="form-control font-monospace"
+                                    placeholder="{{ $description }}"
+                                    value="{{ $value }}">
                             @else
                                 <textarea name="settings[{{ $key }}]" rows="{{ $key === 'cookie' || $key === 'user_agent' ? 3 : 1 }}"
                                     class="form-control font-monospace"
-                                    placeholder="{{ $setting->description ?? '' }}">{{ old("settings.$key", $setting->value ?? '') }}</textarea>
+                                    placeholder="{{ $description }}">{{ $value }}</textarea>
                             @endif
-                            @if ($setting?->description)
-                                <div class="form-text">{{ $setting->description }}</div>
+                            @if ($description)
+                                <div class="form-text">{{ $description }}</div>
                             @endif
                         </div>
                     @endforeach

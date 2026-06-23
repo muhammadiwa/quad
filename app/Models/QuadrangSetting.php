@@ -24,9 +24,14 @@ class QuadrangSetting extends Model
 
     public static function set(string $key, ?string $value, ?string $description = null): void
     {
+        $attributes = ['value' => $value];
+        if ($description !== null) {
+            $attributes['description'] = $description;
+        }
+
         static::updateOrCreate(
             ['key' => $key],
-            ['value' => $value, 'description' => $description],
+            $attributes,
         );
     }
 }

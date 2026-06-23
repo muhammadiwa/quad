@@ -28,6 +28,9 @@ in SQLite and is editable from the browser.
 - **Reusable task templates** — project id, working hours, location,
   skills, task type, all editable from the UI; one row flagged as
   default.
+- **Automatic attendance scheduler** — optional clock in / clock out
+  cron command that follows workdays, Indonesian public holidays, the
+  default template work hours, and a daily duplicate guard.
 - **Web form + JSON API** — both `POST /timesheet/create` (HTML, with
   flash message and SweetAlert2 result modal) and
   `POST /api/timesheet/create` (JSON) share the same business logic.
@@ -103,6 +106,44 @@ When Quadrang logs you out, repeat step 2–5.
 | `/settings` | GET / PATCH | Edit `base_url`, `csrf_token`, `cookie`, default template |
 | `/settings/template/new` | GET | New task template form |
 | `/settings/template/{id}` | GET / PUT / DELETE | Edit / update / delete a template |
+
+### Automatic attendance cron
+
+The scheduler command is registered in `routes/console.php` and runs
+every minute through Laravel Scheduler. The command only sends
+attendance when all checks pass:
+
+- `auto_attendance_enabled` is `1`
+- today is not Saturday / Sunday
+- today is not an Indonesian public holiday from `libur.deno.dev`
+- current time is inside the configured clock-in / clock-out window
+- today's action has not already been processed
+- `default_lat`, `default_lon`, `cookie`, and `csrf_token` are filled
+
+The command uses the default task template's `start_at` and `end_at` as
+the clock-in / clock-out time. You can override them from `/settings`
+with `auto_clock_in_time` and `auto_clock_out_time`.
+
+Manual checks:
+
+```bash
+php artisan attendance:auto --dry-run
+php artisan attendance:auto --dry-run --force --action=clock-in
+php artisan attendance:auto --force --action=clock-out
+```
+
+Production cron entry for Linux:
+
+```cron
+* * * * * cd /path/to/quad && php artisan schedule:run >> /dev/null 2>&1
+```
+
+On Windows Task Scheduler, run this every minute from the project
+directory:
+
+```powershell
+php artisan schedule:run
+```
 
 ### Programmatic usage
 
@@ -251,6 +292,11 @@ env var.
 | `default_lat` | *(empty)* | Default latitude for Clock In / Clock Out. Leave empty to use browser GPS at submit time |
 | `default_lon` | *(empty)* | Default longitude for Clock In / Clock Out |
 | `user_agent` | Chrome on Windows | Browser-like UA for Quadrang |
+| `auto_attendance_enabled` | `0` | Set to `1` to enable scheduled clock in/out |
+| `auto_attendance_timezone` | `Asia/Jakarta` | Timezone used by the attendance scheduler |
+| `auto_clock_in_time` | *(empty)* | Optional override for auto clock in. Empty means use default template `start_at` |
+| `auto_clock_out_time` | *(empty)* | Optional override for auto clock out. Empty means use default template `end_at` |
+| `auto_attendance_window_minutes` | `5` | Scheduler tolerance after the target time, in minutes |
 
 `cookie` and `csrf_token` ship **empty on purpose**. The
 `TimeSheetController` checks both at the top of `store()` and `create()`;

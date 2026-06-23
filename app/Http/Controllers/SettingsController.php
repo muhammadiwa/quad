@@ -30,12 +30,13 @@ class SettingsController extends Controller
             'settings' => ['array'],
             'settings.*' => ['nullable', 'string'],
             'default_template_id' => ['nullable', 'integer', 'exists:task_templates,id'],
-        ]);
-
-        $validated = $request->validate([
-            'settings' => ['array'],
             'settings.default_lat' => ['nullable', 'string', 'regex:/^-?\d+(\.\d+)?$/'],
             'settings.default_lon' => ['nullable', 'string', 'regex:/^-?\d+(\.\d+)?$/'],
+            'settings.auto_attendance_enabled' => ['nullable', 'string', 'in:0,1'],
+            'settings.auto_attendance_timezone' => ['nullable', 'string', 'timezone'],
+            'settings.auto_clock_in_time' => ['nullable', 'string', 'date_format:H:i'],
+            'settings.auto_clock_out_time' => ['nullable', 'string', 'date_format:H:i'],
+            'settings.auto_attendance_window_minutes' => ['nullable', 'integer', 'min:1', 'max:60'],
         ]);
 
         foreach ($data['settings'] ?? [] as $key => $value) {
