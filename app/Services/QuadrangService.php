@@ -294,16 +294,30 @@ class QuadrangService
     {
         $body = $response->body();
         $visible = trim(preg_replace('/\s+/', ' ', strip_tags($body)));
+        $expectedNextAction = $action === 'clockIn' ? 'Check-Out' : 'Check-In';
+        $loginPage = str_contains($visible, 'Login - Dashboard QuadraNG')
+            || str_contains($visible, 'Secure Sign-in');
+        $csrfMismatch = str_contains($visible, 'CSRF token mismatch')
+            || str_contains($visible, 'CSRF verification failed');
+        $stateUpdated = str_contains($visible, $expectedNextAction);
+        $success = $response->successful()
+            && $stateUpdated
+            && ! $loginPage
+            && ! $csrfMismatch;
 
         \Log::info("quadrang.$action", [
             'status' => $response->status(),
             'successful' => $response->successful(),
+            'state_updated' => $stateUpdated,
+            'expected_next_action' => $expectedNextAction,
+            'login_page' => $loginPage,
+            'csrf_mismatch' => $csrfMismatch,
             'body_length' => strlen($body),
             'body_first_300' => substr($visible, 0, 300),
         ]);
 
         return [
-            'success' => $response->successful(),
+            'success' => $success,
             'status' => $response->status(),
             'body' => $visible,
         ];

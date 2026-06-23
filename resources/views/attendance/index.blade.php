@@ -84,12 +84,12 @@
                     <div class="col-md-6">
                         <label class="form-label small fw-semibold">Latitude (-90 .. 90)</label>
                         <input type="number" step="any" id="latInput" class="form-control form-control-lg font-monospace"
-                            value="{{ $defaultLat }}" placeholder="-6.218656">
+                            value="{{ old('lat', $defaultLat) }}" placeholder="-6.218656">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label small fw-semibold">Longitude (-180 .. 180)</label>
                         <input type="number" step="any" id="lonInput" class="form-control form-control-lg font-monospace"
-                            value="{{ $defaultLon }}" placeholder="106.812785">
+                            value="{{ old('lon', $defaultLon) }}" placeholder="106.812785">
                     </div>
                 </div>
                 <button type="button" id="btnUseLocation" class="btn btn-outline-secondary">
@@ -109,10 +109,15 @@
                             <h2 class="h5 fw-bold mb-0">Clock In</h2>
                         </div>
                         <p class="text-secondary small mb-3">Catat kehadiran masuk hari ini.</p>
-                        <button id="btnClockIn" class="btn btn-ok btn-lg w-100">
-                            <span class="spinner-border spinner-border-sm d-none me-2" id="spinIn"></span>
-                            Clock In
-                        </button>
+                        <form method="post" action="{{ route('attendance.api.clock-in') }}" id="clockInForm">
+                            @csrf
+                            <input type="hidden" name="lat">
+                            <input type="hidden" name="lon">
+                            <button type="submit" id="btnClockIn" class="btn btn-ok btn-lg w-100">
+                                <span class="spinner-border spinner-border-sm d-none me-2" id="spinIn"></span>
+                                Clock In
+                            </button>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -124,10 +129,15 @@
                             <h2 class="h5 fw-bold mb-0">Clock Out</h2>
                         </div>
                         <p class="text-secondary small mb-3">Catat kehadiran keluar hari ini.</p>
-                        <button id="btnClockOut" class="btn btn-warn btn-lg w-100">
-                            <span class="spinner-border spinner-border-sm d-none me-2" id="spinOut"></span>
-                            Clock Out
-                        </button>
+                        <form method="post" action="{{ route('attendance.api.clock-out') }}" id="clockOutForm">
+                            @csrf
+                            <input type="hidden" name="lat">
+                            <input type="hidden" name="lon">
+                            <button type="submit" id="btnClockOut" class="btn btn-warn btn-lg w-100">
+                                <span class="spinner-border spinner-border-sm d-none me-2" id="spinOut"></span>
+                                Clock Out
+                            </button>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -136,7 +146,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+        const flashResult = @json(session('result'));
         const geoStatus = document.getElementById('geoStatus');
 
         function readCoords() {
@@ -145,7 +155,9 @@
             return { lat, lon, ok: Number.isFinite(lat) && Number.isFinite(lon) };
         }
 
-        async function call(action, btn, spinner) {
+        async function submitAttendance(event, form, actionLabel, confirmColor) {
+            event.preventDefault();
+
             const { lat, lon, ok } = readCoords();
             if (! ok) {
                 Swal.fire({
@@ -156,46 +168,40 @@
                 return;
             }
 
-            btn.disabled = true;
-            spinner.classList.remove('d-none');
+            form.querySelector('input[name="lat"]').value = lat;
+            form.querySelector('input[name="lon"]').value = lon;
 
-            try {
-                const res = await fetch(action, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRFToken': CSRF,
-                    },
-                    body: JSON.stringify({ lat, lon }),
+            const result = await Swal.fire({
+                icon: 'question',
+                title: `Jalankan ${actionLabel}?`,
+                html: `
+                    <div class="text-start">
+                        <div class="mb-3">Aplikasi akan meneruskan absensi ke Quadrang memakai Cookie dan X-CSRFToken dari /settings.</div>
+                        <div class="p-3 rounded-3 bg-light border">
+                            <div><strong>Latitude:</strong> ${lat.toFixed(6)}</div>
+                            <div><strong>Longitude:</strong> ${lon.toFixed(6)}</div>
+                        </div>
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Ya, jalankan',
+                cancelButtonText: 'Batal',
+                confirmButtonColor: confirmColor,
+                cancelButtonColor: '#64748b',
+                reverseButtons: true,
+                focusCancel: true,
+            });
+
+            if (result.isConfirmed) {
+                Swal.fire({
+                    title: 'Memproses...',
+                    text: 'Mohon tunggu, sedang submit absensi ke Quadrang.',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    didOpen: () => Swal.showLoading(),
                 });
 
-                const data = await res.json();
-
-                if (data.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Berhasil',
-                        text: data.message,
-                        footer: `<small>lat=${(+lat).toFixed(6)}, lon=${(+lon).toFixed(6)}</small>`,
-                        confirmButtonColor: '#16a34a',
-                    });
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: `Gagal (HTTP ${data.status || '?'})`,
-                        text: data.message,
-                        footer: data.body_preview
-                            ? `<small style="text-align:left;">${data.body_preview.substring(0, 200)}</small>`
-                            : '',
-                        confirmButtonColor: '#4f46e5',
-                    });
-                }
-            } catch (err) {
-                Swal.fire('Error jaringan', err.message, 'error');
-            } finally {
-                btn.disabled = false;
-                spinner.classList.add('d-none');
+                form.submit();
             }
         }
 
@@ -232,13 +238,27 @@
             });
         });
 
-        document.getElementById('btnClockIn').addEventListener('click', () => {
-            call('/api/attendance/clock-in', document.getElementById('btnClockIn'), document.getElementById('spinIn'));
+        document.getElementById('clockInForm').addEventListener('submit', (event) => {
+            submitAttendance(event, event.currentTarget, 'Clock In', '#16a34a');
         });
 
-        document.getElementById('btnClockOut').addEventListener('click', () => {
-            call('/api/attendance/clock-out', document.getElementById('btnClockOut'), document.getElementById('spinOut'));
+        document.getElementById('clockOutForm').addEventListener('submit', (event) => {
+            submitAttendance(event, event.currentTarget, 'Clock Out', '#d97706');
         });
+
+        if (flashResult) {
+            const footer = flashResult.success && flashResult.lat !== undefined && flashResult.lon !== undefined
+                ? `<small>lat=${(+flashResult.lat).toFixed(6)}, lon=${(+flashResult.lon).toFixed(6)}</small>`
+                : (flashResult.body_preview ? `<small style="text-align:left;">${flashResult.body_preview.substring(0, 200)}</small>` : '');
+
+            Swal.fire({
+                icon: flashResult.success ? 'success' : 'error',
+                title: flashResult.success ? 'Absensi Diproses' : `Gagal${flashResult.status ? ` (HTTP ${flashResult.status})` : ''}`,
+                text: flashResult.message,
+                footer,
+                confirmButtonColor: '#4f46e5',
+            });
+        }
     </script>
 </body>
 </html>
